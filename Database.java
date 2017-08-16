@@ -15,6 +15,7 @@ public class Database {
     private String queryBuilder = "";
     private static Database instance = null;
     
+    
     //private constructor
     private Database()
     {
@@ -27,6 +28,7 @@ public class Database {
         {
             instance = new Database();
         }
+        
         return instance;
     }
     
@@ -43,7 +45,7 @@ public class Database {
         }
     }
     
-    public void insert(String tableName, String[] columns, String[] values)
+    public void insert(String tableName, String[] columns, Object[] values)
     {
         try
         {
@@ -60,12 +62,10 @@ public class Database {
             }
             
             st = conn.createStatement();
-            st.executeUpdate(this.queryBuilder);
+            st.execute(this.queryBuilder);
             
             //Clean up
             this.commitAndClose();
-            
-            
         }
         catch(SQLException e)
         {
@@ -75,15 +75,16 @@ public class Database {
         {
             System.out.println(e.getMessage());
         }
-        
-        
     }
+    
+    
+    
     
     /*
     NOTE: First value of second parameter is a PK column
           First value of third parameter is a PK value
     */
-    public void update(String tableName, String[] columns, String[] values)
+    public void update(String tableName, String[] columns, Object[] values)
     {
         try
         {
@@ -256,7 +257,7 @@ public class Database {
         if (conn != null) {
             try 
             {
-                this.queryBuilder = "";
+                queryBuilder = "";
                 conn.setAutoCommit(false);
                 conn.commit();
             } 
@@ -281,21 +282,15 @@ public class Database {
         }
     }
     
-    
-    public Connection getConnection() { return conn; }
-    
-    public Statement getStatement() { return st; }
-    
-    public void setConnection(Connection con)
+    public Statement getStatement()
     {
-        this.conn = con;
+        return this.st;
     }
     
-    public void setStatement(Statement st)
+    public Connection getConnection()
     {
-        this.st = st;
+        return this.conn;
     }
-    
     
     
 }
