@@ -6,15 +6,13 @@ import javax.swing.table.DefaultTableModel;
 
 public class Database {
     
-    private Connection conn = null;
-    private Statement st = null;
-
-    private DefaultTableModel model = null;
-    private ResultSet rs = null;
-    
-    private String queryBuilder = "";
     private static Database instance = null;
     
+    private Connection conn = null;
+    private PreparedStatement ps = null;
+    private DefaultTableModel model = null;
+    private ResultSet rs = null;
+    private String queryBuilder = "";
     
     //private constructor
     private Database()
@@ -32,116 +30,100 @@ public class Database {
         return instance;
     }
     
-    public void connect(String jdbc_driver, String db_url, String username, String password)
+    public void createDatabase(String databaseName) throws SQLException
     {
-        try
-        {
-            Class.forName(jdbc_driver);
-            conn = DriverManager.getConnection(db_url, username, password);
-        }
-        catch(SQLException | ClassNotFoundException e)
-        {
-            System.out.println(e.getMessage());
-        }
+        queryBuilder = "CREATE Database " + databaseName;
+        ps = conn.prepareStatement(this.queryBuilder);
+        ps.executeQuery();
     }
     
-    public void insert(String tableName, String[] columns, Object[] values)
+    public void connect(String jdbc_driver, String db_url, String username, String password) throws SQLException, ClassNotFoundException
     {
-        try
-        {
-            queryBuilder += "INSERT INTO " + tableName + "(";
-        
-            for(int i = 0; i < columns.length; i++)
-            {
-                queryBuilder +=  ( i == columns.length - 1 ) ? columns[i] + ") VALUES (" : columns[i] + ",";
-            }
+        Class.forName(jdbc_driver);
+        conn = DriverManager.getConnection(db_url, username, password);
+    }
+    
+    public Statement getStatement()
+    {
+        return this.ps;
+    }
+    
+    public Connection getConnection()
+    {
+        return this.conn;
+    }
+     
+    public void insert(String tableName, String[] columns, Object[] values) throws SQLException
+    {
+        queryBuilder += "INSERT INTO " + tableName + "(";
 
-            for(int i = 0; i < values.length; i++)
-            {
-                queryBuilder +=  ( i == values.length - 1 ) ? "'" + values[i] + "')"  : "'" + values[i] + "',";
-            }
-            
-            st = conn.createStatement();
-            st.execute(this.queryBuilder);
-            
-            //Clean up
-            this.commitAndClose();
-        }
-        catch(SQLException e)
+        for(int i = 0; i < columns.length; i++)
         {
-            System.out.println(e.getMessage());
+            queryBuilder +=  ( i == columns.length - 1 ) ? columns[i] + ") VALUES (" : columns[i] + ",";
         }
-        catch(Exception e)
+
+        for(int i = 0; i < values.length; i++)
         {
-            System.out.println(e.getMessage());
+            queryBuilder +=  ( i == values.length - 1 ) ? "?)"  : "?,";
         }
+
+        ps = conn.prepareStatement(this.queryBuilder);
+        for(int i = 0; i < values.length; i++)
+        {
+            ps.setObject( (i + 1), values[i]);
+        }
+
+        ps.executeUpdate();
+
+        this.commitAndClose();
     }
-    
-    
     
     
     /*
     NOTE: First value of second parameter is a PK column
           First value of third parameter is a PK value
+    
     */
-    public void update(String tableName, String[] columns, Object[] values)
+    
+    public void update(String tableName, String[] columns, Object[] values) throws SQLException, Exception
     {
-        try
+        queryBuilder += "UPDATE " + tableName + " set ";
+
+        for(int i = 1; i < columns.length; i++)
         {
-            queryBuilder += "UPDATE " + tableName + " set ";
-        
-            for(int i = 0; i < columns.length; i++)
-            {
-               queryBuilder += ( i == columns.length - 1 ) ?  columns[i] + " = '" + values[i] + "' WHERE " + columns[0] + " = " + values[0]   : columns[i] + " = '" + values[i] + "', ";
-            }
-            
-            st = conn.createStatement();
-            st.execute(this.queryBuilder);
-            
-            //Clean up
-            this.commitAndClose();
-            
+           queryBuilder += ( i == columns.length - 1 ) ?  columns[i] + " = ? WHERE " + columns[0] + " = ?" : columns[i] + " = ?, ";
         }
-        catch(SQLException e)
+
+        ps = conn.prepareStatement(this.queryBuilder);
+        ps.setObject(values.length, values[0]);
+
+        for(int i = 0; i < values.length - 1; i++)
         {
-            System.out.println(e.getMessage());
+            ps.setObject((i + 1), values[i + 1]);
         }
-        catch(Exception e)
-        {
-            System.out.println(e.getMessage());
-        }
+
+        ps.executeUpdate();
+
+        this.commitAndClose();
     }
     
-    public void delete(String tableName, String pkColumn , int id)
+    public void delete(String tableName, String pkColumn , int id) throws SQLException
     {
-        try
-        {
-            queryBuilder += "DELETE FROM " + tableName + " WHERE " + pkColumn + " = " + id;
+            queryBuilder += "DELETE FROM " + tableName + " WHERE " + pkColumn + " = ?";
+            ps = conn.prepareStatement(this.queryBuilder);
             
-            st = conn.createStatement();
-            st.execute(this.queryBuilder);
+            ps.setInt(1, id);
+            ps.executeUpdate();
             
-            //Clean up
             this.commitAndClose();
-        }
-        catch(SQLException e)
-        {
-            System.out.println(e.getMessage());
-        }
-        catch(Exception e)
-        {
-            System.out.println(e.getMessage());
-        }
     }
     
     
     public ResultSet retrieveAll(String tableName) throws SQLException
     {
         queryBuilder += "SELECT * FROM " + tableName;
-        st = conn.createStatement();
-        
-        //Execute query
-        rs = st.executeQuery(this.queryBuilder);
+        ps = conn.prepareStatement(this.queryBuilder);
+        rs = ps.executeQuery();
         return rs;
     }
     
@@ -155,24 +137,25 @@ public class Database {
 
         for(int i = 1; i < columnNames.length; i++)
         {
-            queryBuilder += ( i == columnNames.length - 1 ) ? columnNames[i] + " FROM " + tableName + " WHERE " + columnNames[0] + " = " + id : columnNames[i] + ", ";
+            queryBuilder += ( i == columnNames.length - 1 ) ? columnNames[i] + " FROM " + tableName + " WHERE " + columnNames[0] + " = ?" :  columnNames[i] + ", ";
         }
         
-        st = conn.createStatement();
-        //Execute query
-        rs = st.executeQuery(this.queryBuilder);
-
+        ps = conn.prepareStatement(this.queryBuilder);
+        
+        ps.setInt(1, id);
+        rs = ps.executeQuery();
         return rs;
     }
+    
     
     //For one specific column & row
     public ResultSet retrieve(String tableName, String pkColumn, String columnName , int id) throws SQLException
     {
-        queryBuilder += "SELECT " + columnName + " FROM " + tableName + " WHERE " + pkColumn + " = " + id;
-        st = conn.createStatement();
-        
-        //Execute query
-        rs = st.executeQuery(this.queryBuilder);
+        queryBuilder += "SELECT " + columnName + " FROM " + tableName + " WHERE " + pkColumn + " = ?";
+        ps = conn.prepareStatement(this.queryBuilder);
+        ps.setInt(1, id);
+         
+        rs = ps.executeQuery();
         
         return rs;
     }
@@ -188,10 +171,8 @@ public class Database {
             queryBuilder += ( i == columnNames.length - 1 ) ? columnNames[i] + " FROM " + tableName : columnNames[i] + ", ";
         }
         
-        System.out.println(queryBuilder);
-        st = conn.createStatement();
-        rs = st.executeQuery(this.queryBuilder);
-        
+        ps = conn.prepareStatement(this.queryBuilder);
+        rs = ps.executeQuery();
         return rs;
     }
     
@@ -217,34 +198,28 @@ public class Database {
     }
     
     //binds resultset into an html table - NOT FINISHED YET
-    public void bind(ResultSet rs)
+    /*public void bind(ResultSet rs) throws SQLException
     {
-        try
-        {
-            String output = "";
-            ResultSetMetaData metaData = rs.getMetaData();
-            int columnCount = metaData.getColumnCount();
+        String output = "";
+        ResultSetMetaData metaData = rs.getMetaData();
+        int columnCount = metaData.getColumnCount();
 
-            while(rs.next())
-            {
-                output += "<tr>";
-                for(int i = 0; i < columnCount; i++)
-                {
-                    output += "<td" + rs.getObject(i + 1) + "</td>";
-                }
-                output += "</tr>";
-            }
-        }
-        catch(SQLException e)
+        while(rs.next())
         {
-            System.out.println(e.getMessage());
+            output += "<tr>";
+            for(int i = 0; i < columnCount; i++)
+            {
+                output += "<td" + rs.getObject(i + 1) + "</td>";
+            }
+            output += "</tr>";
         }
-    }
+     
+    }*/
     
     public void setColumn(JTable table, String[] columnNames)
     {
         model = (DefaultTableModel)table.getModel();
-        //clear model
+        
         model.setRowCount(0);
         model.setColumnCount(0);
         model.setColumnIdentifiers(columnNames);
@@ -252,45 +227,17 @@ public class Database {
     
     
     //COMMIT and CLOSE after retrieving data
-    public void commitAndClose() 
+    public void commitAndClose() throws SQLException
     {
-        if (conn != null) {
-            try 
-            {
-                queryBuilder = "";
-                conn.setAutoCommit(false);
-                conn.commit();
-            } 
-            catch (SQLException ex) 
-            {
-                System.out.println(ex.getMessage());
-            } 
-            finally 
-            {
-                try 
-                {
-                    rs.close();  
-                    st.close();
-                    conn.close();
-                    model = null;
-                } 
-                catch (SQLException ex) 
-                {
-                    System.out.println(ex.getMessage());
-                }
-            }
+        if (conn != null)
+        {
+            queryBuilder = "";
+            conn.setAutoCommit(false);
+            conn.commit();
+            rs.close();  
+            ps.close();
+            conn.close();
+            model = null;
         }
     }
-    
-    public Statement getStatement()
-    {
-        return this.st;
-    }
-    
-    public Connection getConnection()
-    {
-        return this.conn;
-    }
-    
-    
 }
