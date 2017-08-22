@@ -47,6 +47,11 @@ public class Database {
     {
         return this.ps;
     }
+	
+	public void setStatement(PreparedStatement ps)
+	{
+		this.ps = ps;
+	}
     
     public Connection getConnection()
     {
