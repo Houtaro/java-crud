@@ -1,6 +1,11 @@
 
-package Libs;
-import java.sql.*;
+package Lib;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import javax.swing.JTable;
 import javax.swing.table.DefaultTableModel;
 
@@ -43,15 +48,15 @@ public class Database {
         conn = DriverManager.getConnection(db_url, username, password);
     }
     
-    public Statement getStatement()
+    public PreparedStatement getPreparedStatement()
     {
         return this.ps;
     }
 	
-	public void setStatement(PreparedStatement ps)
-	{
-		this.ps = ps;
-	}
+    public void setPreparedStatement(PreparedStatement ps)
+    {
+            this.ps = ps;
+    }
     
     public Connection getConnection()
     {
@@ -60,6 +65,8 @@ public class Database {
      
     public void insert(String tableName, String[] columns, Object[] values) throws SQLException
     {
+        String simulation = "";
+        
         queryBuilder += "INSERT INTO " + tableName + "(";
 
         for(int i = 0; i < columns.length; i++)
@@ -73,14 +80,17 @@ public class Database {
         }
 
         ps = conn.prepareStatement(this.queryBuilder);
+        
+        simulation += this.queryBuilder + "\n";
+        
         for(int i = 0; i < values.length; i++)
         {
-            ps.setObject( (i + 1), values[i]);
+            simulation += "\n ps.setObject(" + (i + 1) + ", " + values[i] + ")" + "\n";
+            ps.setObject((i + 1), values[i]);
         }
-
+        
         ps.executeUpdate();
-
-        this.commitAndClose();
+        this.queryBuilder = "";
     }
     
     
@@ -90,7 +100,25 @@ public class Database {
     
     */
     
-    public void update(String tableName, String[] columns, Object[] values) throws SQLException, Exception
+    public void clearQuery()
+    {
+        this.queryBuilder = "";
+    }
+    
+    
+
+    /**
+     *
+     * @param tableName
+     * @param columns
+     * @param values
+     * @return
+     * @throws SQLException
+     * @throws Exception
+     */
+
+    
+    public String update(String tableName, String[] columns, Object[] values) throws SQLException, Exception
     {
         queryBuilder += "UPDATE " + tableName + " set ";
 
@@ -106,18 +134,20 @@ public class Database {
         {
             ps.setObject((i + 1), values[i + 1]);
         }
-
+        
         ps.executeUpdate();
 
-        this.commitAndClose();
+        
+        return this.queryBuilder;
+        //this.commitAndClose();
     }
     
-    public void delete(String tableName, String pkColumn , int id) throws SQLException
+    public void delete(String tableName, String pkColumn , Object id) throws SQLException
     {
             queryBuilder += "DELETE FROM " + tableName + " WHERE " + pkColumn + " = ?";
             ps = conn.prepareStatement(this.queryBuilder);
             
-            ps.setInt(1, id);
+            ps.setObject(1, id);
             ps.executeUpdate();
             
             this.commitAndClose();
@@ -129,6 +159,7 @@ public class Database {
         queryBuilder += "SELECT * FROM " + tableName;
         ps = conn.prepareStatement(this.queryBuilder);
         rs = ps.executeQuery();
+        
         return rs;
     }
     
@@ -136,7 +167,7 @@ public class Database {
     /*
     NOTE: First value of second parameter is a PK column
     */
-    public ResultSet retrieve(String tableName, String[] columnNames, int id) throws SQLException
+    public ResultSet retrieve(String tableName, String[] columnNames, Object id) throws SQLException
     {
         queryBuilder += "SELECT ";
 
@@ -147,11 +178,10 @@ public class Database {
         
         ps = conn.prepareStatement(this.queryBuilder);
         
-        ps.setInt(1, id);
+        ps.setObject(1, id);
         rs = ps.executeQuery();
         return rs;
     }
-    
     
     //For one specific column & row
     public ResultSet retrieve(String tableName, String pkColumn, String columnName , int id) throws SQLException
@@ -200,6 +230,7 @@ public class Database {
         }
         
         tableName.setModel(model);
+        
     }
     
     //binds resultset into an html table - NOT FINISHED YET
@@ -237,9 +268,8 @@ public class Database {
         if (conn != null)
         {
             queryBuilder = "";
-            conn.setAutoCommit(false);
-            conn.commit();
-            rs.close();  
+            conn.setAutoCommit(false);  
+            rs.close();
             ps.close();
             conn.close();
             model = null;
